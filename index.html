@@ -112,6 +112,8 @@ print y;</textarea>
         [/^[A-Za-z_][A-Za-z0-9_]*/, 'IDENT'],
         [/^[+\-*/=;()]/, 'SYMBOL']
       ];
+      const ERROR_PREVIEW_LENGTH = 12;
+      const TOKEN_TYPE_PADDING = 7;
 
       function tokenize(input) {
         const tokens = [];
@@ -141,7 +143,9 @@ print y;</textarea>
           }
 
           if (!matched) {
-            throw new Error(`Unexpected token near: ${code.slice(0, 12)}`);
+            throw new Error(
+              `Unexpected token near: "${code.slice(0, ERROR_PREVIEW_LENGTH)}..."`
+            );
           }
         }
 
@@ -325,7 +329,9 @@ print y;</textarea>
           const tokens = tokenize(source);
           const ast = parse(tokens);
 
-          tokensEl.textContent = tokens.map((t) => `${t.type.padEnd(7)} ${t.value}`).join('\n');
+          tokensEl.textContent = tokens
+            .map((t) => `${t.type.padEnd(TOKEN_TYPE_PADDING)} ${t.value}`)
+            .join('\n');
           renderTree(ast, astEl);
           message.textContent = 'Compilation successful.';
         } catch (error) {
