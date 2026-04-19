@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MVP Compiler Visualizer</title>
+    <style>
+      :root {
+        font-family: Arial, sans-serif;
+        color-scheme: light;
+      }
+
+      body {
+        margin: 0;
+        padding: 1rem;
+        background: #f7f7f9;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 180px;
+        font-family: Consolas, Monaco, monospace;
+        font-size: 14px;
+      }
+
+      button {
+        padding: 0.5rem 0.9rem;
+        border: 1px solid #222;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      .panel {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 0.8rem;
+      }
+
+      .output-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      .error {
+        color: #b00020;
+        font-weight: bold;
+      }
+
+      ul {
+        margin: 0.2rem 0 0.2rem 1rem;
+        padding-left: 0.8rem;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+      }
+
+      @media (max-width: 900px) {
+        .output-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MVP Compiler Visualizer</h1>
+    <div class="layout">
+      <div class="panel">
+        <p>
+          Supported syntax: <code>let name = expression;</code>,
+          <code>print expression;</code>, and expression statements.
+        </p>
+        <textarea id="source">let x = 4 + 3 * (2 + 1);
+let y = x - 5;
+print y;</textarea>
+        <p>
+          <button id="compile" type="button">Compile &amp; Visualize</button>
+        </p>
+        <div id="message" aria-live="polite"></div>
+      </div>
+
+      <div class="output-grid">
+        <div class="panel">
+          <h2>Tokens</h2>
+          <pre id="tokens"></pre>
+        </div>
+        <div class="panel">
+          <h2>AST</h2>
+          <div id="ast"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const tokenPatterns = [
+        [/^\s+/, null],
+        [/^\d+(?:\.\d+)?/, 'NUMBER'],
+        [/^[A-Za-z_][A-Za-z0-9_]*/, 'IDENT'],
+        [/^[+\-*/=;()]/, 'SYMBOL']
+      ];
+
+      function tokenize(input) {
+        const tokens = [];
+        let code = input;
+
+        while (code.length > 0) {
+          let matched = false;
+
+          for (const [pattern, type] of tokenPatterns) {
+            const match = code.match(pattern);
+            if (!match) {
+              continue;
+            }
+
+            matched = true;
+            const value = match[0];
+            code = code.slice(value.length);
+
+            if (type) {
+              const tokenType =
+                type === 'IDENT' && (value === 'let' || value === 'print')
+                  ? 'KEYWORD'
+                  : type;
+              tokens.push({ type: tokenType, value });
+            }
+            break;
+          }
+
+          if (!matched) {
+            throw new Error(`Unexpected token near: ${code.slice(0, 12)}`);
+          }
+        }
+
+        return tokens;
+      }
+
+      function parse(tokens) {
+        let index = 0;
+
+        function peek() {
+          return tokens[index];
+        }
+
+        function consume(expectedType, expectedValue) {
+          const token = tokens[index];
+          if (!token) {
+            throw new Error('Unexpected end of input');
+          }
+
+          if (expectedType && token.type !== expectedType) {
+            throw new Error(`Expected ${expectedType}, found ${token.type}`);
+          }
+
+          if (expectedValue && token.value !== expectedValue) {
+            throw new Error(`Expected '${expectedValue}', found '${token.value}'`);
+          }
+
+          index += 1;
+          return token;
+        }
+
+        function parseProgram() {
+          const body = [];
+          while (index < tokens.length) {
+            body.push(parseStatement());
+          }
+          return { type: 'Program', body };
+        }
+
+        function parseStatement() {
+          const token = peek();
+          if (!token) {
+            throw new Error('Expected statement');
+          }
+
+          if (token.type === 'KEYWORD' && token.value === 'let') {
+            consume('KEYWORD', 'let');
+            const identifier = consume('IDENT').value;
+            consume('SYMBOL', '=');
+            const expression = parseExpression();
+            consume('SYMBOL', ';');
+            return {
+              type: 'VariableDeclaration',
+              identifier,
+              expression
+            };
+          }
+
+          if (token.type === 'KEYWORD' && token.value === 'print') {
+            consume('KEYWORD', 'print');
+            const expression = parseExpression();
+            consume('SYMBOL', ';');
+            return { type: 'PrintStatement', expression };
+          }
+
+          const expression = parseExpression();
+          consume('SYMBOL', ';');
+          return { type: 'ExpressionStatement', expression };
+        }
+
+        function parseExpression() {
+          let node = parseTerm();
+          while (peek() && peek().type === 'SYMBOL' && (peek().value === '+' || peek().value === '-')) {
+            const operator = consume('SYMBOL').value;
+            const right = parseTerm();
+            node = { type: 'BinaryExpression', operator, left: node, right };
+          }
+          return node;
+        }
+
+        function parseTerm() {
+          let node = parseFactor();
+          while (peek() && peek().type === 'SYMBOL' && (peek().value === '*' || peek().value === '/')) {
+            const operator = consume('SYMBOL').value;
+            const right = parseFactor();
+            node = { type: 'BinaryExpression', operator, left: node, right };
+          }
+          return node;
+        }
+
+        function parseFactor() {
+          const token = peek();
+          if (!token) {
+            throw new Error('Expected expression');
+          }
+
+          if (token.type === 'NUMBER') {
+            consume('NUMBER');
+            return { type: 'NumericLiteral', value: Number(token.value) };
+          }
+
+          if (token.type === 'IDENT') {
+            consume('IDENT');
+            return { type: 'Identifier', name: token.value };
+          }
+
+          if (token.type === 'SYMBOL' && token.value === '(') {
+            consume('SYMBOL', '(');
+            const expression = parseExpression();
+            consume('SYMBOL', ')');
+            return expression;
+          }
+
+          throw new Error(`Unexpected token '${token.value}'`);
+        }
+
+        const ast = parseProgram();
+        if (index !== tokens.length) {
+          throw new Error('Unexpected trailing tokens');
+        }
+
+        return ast;
+      }
+
+      function renderTree(node, container) {
+        if (node === null || typeof node !== 'object') {
+          const leaf = document.createElement('span');
+          leaf.textContent = String(node);
+          container.appendChild(leaf);
+          return;
+        }
+
+        const list = document.createElement('ul');
+        const item = document.createElement('li');
+
+        if (Array.isArray(node)) {
+          item.textContent = 'Array';
+          const children = document.createElement('ul');
+          node.forEach((entry, idx) => {
+            const childItem = document.createElement('li');
+            const key = document.createElement('strong');
+            key.textContent = `[${idx}] `;
+            childItem.appendChild(key);
+            renderTree(entry, childItem);
+            children.appendChild(childItem);
+          });
+          item.appendChild(children);
+        } else {
+          item.textContent = node.type ? node.type : 'Object';
+          const children = document.createElement('ul');
+          Object.entries(node).forEach(([key, value]) => {
+            if (key === 'type') {
+              return;
+            }
+            const childItem = document.createElement('li');
+            const keyLabel = document.createElement('strong');
+            keyLabel.textContent = `${key}: `;
+            childItem.appendChild(keyLabel);
+            renderTree(value, childItem);
+            children.appendChild(childItem);
+          });
+          item.appendChild(children);
+        }
+
+        list.appendChild(item);
+        container.appendChild(list);
+      }
+
+      function compileAndVisualize() {
+        const message = document.getElementById('message');
+        const source = document.getElementById('source').value;
+        const tokensEl = document.getElementById('tokens');
+        const astEl = document.getElementById('ast');
+
+        tokensEl.textContent = '';
+        astEl.replaceChildren();
+        message.textContent = '';
+        message.className = '';
+
+        try {
+          const tokens = tokenize(source);
+          const ast = parse(tokens);
+
+          tokensEl.textContent = tokens.map((t) => `${t.type.padEnd(7)} ${t.value}`).join('\n');
+          renderTree(ast, astEl);
+          message.textContent = 'Compilation successful.';
+        } catch (error) {
+          message.textContent = error.message;
+          message.className = 'error';
+        }
+      }
+
+      document.getElementById('compile').addEventListener('click', compileAndVisualize);
+      compileAndVisualize();
+    </script>
+  </body>
+</html>
