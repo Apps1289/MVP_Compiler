@@ -218,7 +218,11 @@ print y;</textarea>
 
         function parseExpression() {
           let node = parseTerm();
-          while (peek() && peek().type === 'SYMBOL' && (peek().value === '+' || peek().value === '-')) {
+          while (true) {
+            const current = peek();
+            if (!current || current.type !== 'SYMBOL' || (current.value !== '+' && current.value !== '-')) {
+              break;
+            }
             const operator = consume('SYMBOL').value;
             const right = parseTerm();
             node = { type: 'BinaryExpression', operator, left: node, right };
@@ -228,7 +232,11 @@ print y;</textarea>
 
         function parseTerm() {
           let node = parseFactor();
-          while (peek() && peek().type === 'SYMBOL' && (peek().value === '*' || peek().value === '/')) {
+          while (true) {
+            const current = peek();
+            if (!current || current.type !== 'SYMBOL' || (current.value !== '*' && current.value !== '/')) {
+              break;
+            }
             const operator = consume('SYMBOL').value;
             const right = parseFactor();
             node = { type: 'BinaryExpression', operator, left: node, right };
