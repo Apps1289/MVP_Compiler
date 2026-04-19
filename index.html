@@ -113,7 +113,7 @@ print y;</textarea>
         [/^[+\-*/=;()]/, 'SYMBOL']
       ];
       const ERROR_PREVIEW_LENGTH = 12;
-      const TOKEN_TYPE_PADDING = 7;
+      const TOKEN_TYPE_PADDING = 8;
 
       function tokenize(input) {
         const tokens = [];
@@ -143,8 +143,10 @@ print y;</textarea>
           }
 
           if (!matched) {
+            const preview = code.slice(0, ERROR_PREVIEW_LENGTH);
+            const suffix = code.length > ERROR_PREVIEW_LENGTH ? '...' : '';
             throw new Error(
-              `Unexpected token near: "${code.slice(0, ERROR_PREVIEW_LENGTH)}..."`
+              `Unexpected token near: "${preview}${suffix}"`
             );
           }
         }
