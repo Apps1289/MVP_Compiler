@@ -216,32 +216,26 @@ print y;</textarea>
           return { type: 'ExpressionStatement', expression };
         }
 
-        function parseExpression() {
-          let node = parseTerm();
+        function parseBinary(nextParser, operators) {
+          let node = nextParser();
           while (true) {
             const current = peek();
-            if (!current || current.type !== 'SYMBOL' || (current.value !== '+' && current.value !== '-')) {
+            if (!current || current.type !== 'SYMBOL' || !operators.includes(current.value)) {
               break;
             }
             const operator = consume('SYMBOL').value;
-            const right = parseTerm();
+            const right = nextParser();
             node = { type: 'BinaryExpression', operator, left: node, right };
           }
           return node;
         }
 
+        function parseExpression() {
+          return parseBinary(parseTerm, ['+', '-']);
+        }
+
         function parseTerm() {
-          let node = parseFactor();
-          while (true) {
-            const current = peek();
-            if (!current || current.type !== 'SYMBOL' || (current.value !== '*' && current.value !== '/')) {
-              break;
-            }
-            const operator = consume('SYMBOL').value;
-            const right = parseFactor();
-            node = { type: 'BinaryExpression', operator, left: node, right };
-          }
-          return node;
+          return parseBinary(parseFactor, ['*', '/']);
         }
 
         function parseFactor() {
