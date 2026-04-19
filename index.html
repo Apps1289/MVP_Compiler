@@ -334,7 +334,7 @@ print y;</textarea>
           const ast = parse(tokens);
 
           tokensEl.textContent = tokens
-            .map((t) => `${t.type.padEnd(TOKEN_TYPE_PADDING)} ${t.value}`)
+            .map((token) => `${token.type.padEnd(TOKEN_TYPE_PADDING)} ${token.value}`)
             .join('\n');
           renderTree(ast, astEl);
           message.textContent = 'Compilation successful.';
